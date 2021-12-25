@@ -1,3 +1,4 @@
+import { verify } from 'crypto';
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { connectToDatabase } from '../../../lib/mongodb';
@@ -11,33 +12,42 @@ export default async function handler(
     res: NextApiResponse
 ) {
     const { password, ...user } = req.body;
-
-    user.hash = bcrypt.hashSync;
-
-    var token = jwt.sign({ password: password }, KEY);
-
-    var decoded = jwt.verify(token, KEY);
-
-    var isSamePassword = "";
-
-    if (password == decoded.password) {
-        isSamePassword = "complete";
-    }
+    let isPassVerifyPassword = false;
 
     if (req.method === "POST") {
-        try {
-            const query = { "user": req.body.username };
-            let { db } = await connectToDatabase();
-            const result = await db.collection("user").findOne(query);
 
-            if (result == null) {
-                return res.status(404).json({ message: "No item found" })
+        try {
+            let { db } = await connectToDatabase();
+            let result = await db.collection("user").findOne({ username: req.body.username });
+            //check password compare
+            let decodedFromCollection = jwt.verify(result.password, KEY);
+            if (decodedFromCollection.password == password) {
+                console.log("COMPARE PASS")
+                isPassVerifyPassword = true;
             }
 
-            return res.status(200).send(result);
-
         } catch (error) {
-            return res.json({ message: error, success: false })
+            return res.json({ message: error, success: false });
+        }
+
+
+        // after login complete find and return list of fav 
+        if (isPassVerifyPassword) {
+            console.log("condition true");
+            try {
+                const query = { "user": req.body.username };
+                let { db } = await connectToDatabase();
+                const result = await db.collection("db").findOne(query);
+
+                if (result == null) {
+                    return res.status(404).json({ message: "No item found" })
+                }
+
+                return res.status(200).send(result);
+
+            } catch (error) {
+                return res.json({ message: error, success: false })
+            }
         }
     }
 
